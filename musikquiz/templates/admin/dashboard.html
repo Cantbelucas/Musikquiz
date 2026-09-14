@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Admin — Musikquiz{% endblock %}
+{% block main_class %}container container-wide{% endblock %}
+{% block content %}
+<div class="admin-head">
+  <div>
+    <h1 class="page-title">Sange</h1>
+    <p class="muted">{{ total }} i alt · {% for d in difficulties %}{{ DIFFICULTY_LABELS[d] }}: {{ stats[d] }}{{ ' · ' if not loop.last }}{% endfor %}</p>
+  </div>
+  <form method="post" action="{{ url_for('admin.logout') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button type="submit" class="btn btn-ghost">Log ud</button>
+  </form>
+</div>
+
+<section class="card" id="upload">
+  <h2>Upload sang</h2>
+  <form class="form-stack" method="post" action="{{ url_for('admin.upload') }}" enctype="multipart/form-data" id="upload-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label class="dropzone" id="dropzone">
+      <input type="file" name="file" accept=".mp3,.wav,audio/mpeg,audio/wav,audio/x-wav" required id="file-input">
+      <span class="dropzone-text" id="dropzone-text">Vælg eller træk en mp3/wav-fil hertil <small class="muted">(maks {{ max_upload_mb }} MB)</small></span>
+    </label>
+    {% include "admin/_track_fields.html" %}
+    <button type="submit" class="btn btn-primary" id="upload-btn">Upload</button>
+  </form>
+</section>
+
+<section class="card">
+  <div class="table-head">
+    <h2>Bibliotek</h2>
+    <form method="get" class="inline-form search-form">
+      <input type="search" name="q" value="{{ q }}" placeholder="Søg titel, artist, genre">
+      <button type="submit" class="btn btn-secondary">Søg</button>
+    </form>
+  </div>
+
+  {% if tracks %}
+  <div class="table-wrap">
+    <table class="track-table">
+      <thead>
+        <tr><th>Titel</th><th>Artist</th><th>Genre</th><th>Sværhed</th><th>Start</th><th class="sr-only">Handlinger</th></tr>
+      </thead>
+      <tbody>
+        {% for t in tracks %}
+        <tr>
+          <td data-label="Titel"><strong>{{ t.title }}</strong></td>
+          <td data-label="Artist">{{ t.artist }}</td>
+          <td data-label="Genre">{{ t.genre }}</td>
+          <td data-label="Sværhed"><span class="chip chip-{{ t.difficulty }}">{{ DIFFICULTY_LABELS[t.difficulty] }}</span></td>
+          <td data-label="Start">{{ '%d:%02d'|format((t.start_at // 60)|int, (t.start_at % 60)|int) }}</td>
+          <td class="row-actions">
+            <button type="button" class="btn btn-small btn-secondary preview-btn" data-src="{{ url_for('admin.preview', track_id=t.id) }}" data-start="{{ t.start_at }}">▶</button>
+            <a class="btn btn-small btn-secondary" href="{{ url_for('admin.edit', track_id=t.id) }}">Redigér</a>
+            <form method="post" action="{{ url_for('admin.delete', track_id=t.id) }}" data-confirm="Slet “{{ t.title }}”? Lydfilen slettes også.">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn-small btn-danger">Slet</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    <p class="muted">{{ 'Ingen sange matcher søgningen.' if q else 'Ingen sange endnu — upload den første ovenfor.' }}</p>
+  {% endif %}
+</section>
+<audio id="preview-audio" preload="none"></audio>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/admin.js') }}" defer></script>
+{% endblock %}

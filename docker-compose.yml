@@ -1,0 +1,48 @@
+name: musikquiz
+
+services:
+  musikquiz:
+    build: .
+    image: musikquiz:latest
+    container_name: musikquiz
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATA_DIR: /data
+    ports:
+      # Kun tilgængelig fra værten selv. 8090 er optaget af en anden app.
+      - "127.0.0.1:${HOST_PORT:-8091}:8000"
+    volumes:
+      - ./data:/data
+    networks:
+      - musikquiz_net
+    read_only: true
+    tmpfs:
+      - /tmp:size=256m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      # Kun nødvendige for entrypoint (ret ejerskab af /data og skift til uid 10001).
+      # Efter skiftet har gunicorn-processen ingen capabilities.
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETUID
+      - SETGID
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  musikquiz_net:
+    name: musikquiz_net

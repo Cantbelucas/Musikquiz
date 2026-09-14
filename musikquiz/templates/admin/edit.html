@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Redigér sang — Musikquiz{% endblock %}
+{% block main_class %}container container-narrow{% endblock %}
+{% block content %}
+<p><a href="{{ url_for('admin.dashboard') }}">← Tilbage</a></p>
+<section class="card">
+  <h1>Redigér sang</h1>
+  <p class="muted small">Fil: {{ track.original_name or track.filename }}</p>
+  <audio controls preload="none" src="{{ url_for('admin.preview', track_id=track.id) }}" class="edit-audio"></audio>
+  <form class="form-stack" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {% include "admin/_track_fields.html" %}
+    <button type="submit" class="btn btn-primary">Gem ændringer</button>
+  </form>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/admin.js') }}" defer></script>
+{% endblock %}

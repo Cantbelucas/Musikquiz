@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Highscores — Musikquiz{% endblock %}
+{% block main_class %}container container-narrow{% endblock %}
+{% block content %}
+<h1 class="page-title">Highscores</h1>
+
+<nav class="tabs" aria-label="Filtrér efter sværhedsgrad">
+  <a class="tab {{ 'is-active' if difficulty == 'alle' }}" href="{{ url_for('public.highscores') }}">Alle</a>
+  {% for d in difficulties %}
+    <a class="tab {{ 'is-active' if difficulty == d }}" href="{{ url_for('public.highscores', svaerhed=d) }}">{{ DIFFICULTY_LABELS[d] }}</a>
+  {% endfor %}
+</nav>
+
+{% if rows %}
+<ol class="scoreboard">
+  {% for row in rows %}
+    <li class="score-row {{ 'is-new' if row.id == highlight }} {{ 'is-top' if loop.index <= 3 }}">
+      <span class="score-rank">{{ loop.index }}</span>
+      <span class="score-who">
+        <span class="score-name">{{ row.name }}</span>
+        <span class="score-meta">
+          {{ CATEGORY_LABELS[row.category_type] }}{% if row.category_value %}: {{ row.category_value }}{% endif %}
+          · {{ DIFFICULTY_LABELS[row.difficulty] }} · {{ row.songs }} sange · {{ row.created_at[:10] }}
+        </span>
+      </span>
+      <span class="score-points">{{ row.score }}<span class="score-max">/{{ row.max_score }}</span></span>
+    </li>
+  {% endfor %}
+</ol>
+{% else %}
+<div class="card empty">
+  <p class="muted">Ingen scores her endnu. Bliv den første!</p>
+  <a class="btn btn-primary" href="{{ url_for('public.index') }}">Start en runde</a>
+</div>
+{% endif %}
+{% endblock %}

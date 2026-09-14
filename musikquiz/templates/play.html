@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}Spil — Musikquiz{% endblock %}
+{% block main_class %}container container-narrow{% endblock %}
+{% block content %}
+<div class="game" id="game"
+     data-state-url="{{ url_for('public.api_state', game_id=game.id) }}"
+     data-guess-url="{{ url_for('public.api_guess', game_id=game.id) }}"
+     data-skip-url="{{ url_for('public.api_skip', game_id=game.id) }}"
+     data-next-url="{{ url_for('public.api_next', game_id=game.id) }}">
+
+  <div class="hud">
+    <div class="hud-item">
+      <span class="hud-label">Sang</span>
+      <span class="hud-value"><span id="hud-index">–</span><span class="hud-dim">/<span id="hud-total">–</span></span></span>
+    </div>
+    <div class="hud-item hud-center">
+      <span class="chip">{{ CATEGORY_LABELS[game.category] }}{% if game.value %}: {{ game.value }}{% endif %}</span>
+      <span class="chip chip-{{ game.difficulty }}">{{ DIFFICULTY_LABELS[game.difficulty] }}</span>
+    </div>
+    <div class="hud-item hud-right">
+      <span class="hud-label">Point</span>
+      <span class="hud-value" id="hud-score">0</span>
+    </div>
+  </div>
+
+  <!-- Spil-fase -->
+  <section id="round" class="round" hidden>
+    <ol class="stages" id="stages" aria-label="Sekund-trin"></ol>
+
+    <div class="player">
+      <button type="button" class="play-btn" id="play-btn" aria-label="Afspil klip">
+        <svg class="play-ring" viewBox="0 0 120 120" aria-hidden="true">
+          <circle class="ring-track" cx="60" cy="60" r="54"/>
+          <circle class="ring-progress" id="ring-progress" cx="60" cy="60" r="54"/>
+        </svg>
+        <span class="play-icon" aria-hidden="true">
+          <svg class="icon-play" viewBox="0 0 24 24"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/></svg>
+          <svg class="icon-stop" viewBox="0 0 24 24"><rect x="6.5" y="6.5" width="11" height="11" rx="2"/></svg>
+        </span>
+        <span class="play-seconds" id="play-seconds">1s</span>
+      </button>
+      <p class="play-hint" id="play-hint">Tryk for at høre 1 sekund</p>
+    </div>
+
+    <div class="round-actions">
+      <button type="button" class="btn btn-ghost btn-block" id="skip-btn">Skip — hør et længere klip</button>
+    </div>
+
+    <div class="reveal" id="reveal" hidden aria-live="polite">
+      <p class="reveal-verdict" id="reveal-verdict"></p>
+      <p class="reveal-song"><span id="reveal-title"></span> <span class="muted">— <span id="reveal-artist"></span></span></p>
+      <div class="reveal-actions">
+        <button type="button" class="btn btn-secondary" id="listen-btn">Hør sangen</button>
+        <button type="button" class="btn btn-primary" id="next-btn">Næste sang</button>
+      </div>
+    </div>
+
+    <div class="options" id="options" role="group" aria-label="Svarmuligheder"></div>
+  </section>
+
+  <!-- Slut-fase -->
+  <section id="finished" class="finished" hidden>
+    <p class="finished-label">Runden er slut</p>
+    <p class="finished-score"><span id="final-score">0</span><span class="finished-max">/ <span id="final-max">0</span></span></p>
+    <p class="finished-sub muted" id="final-sub"></p>
+
+    <form class="card highscore-form" id="highscore-form" method="post" action="{{ url_for('public.save_highscore', game_id=game.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label for="hs-name">Skriv dit navn på highscorelisten</label>
+      <div class="inline-form">
+        <input type="text" id="hs-name" name="name" maxlength="24" required autocomplete="nickname" placeholder="Dit navn">
+        <button type="submit" class="btn btn-primary">Gem</button>
+      </div>
+    </form>
+    <p class="muted center" id="highscore-saved" hidden>Din score er gemt. <a href="{{ url_for('public.highscores', svaerhed=game.difficulty) }}">Se highscores</a></p>
+
+    <ol class="results" id="results"></ol>
+
+    <div class="finished-actions">
+      <a class="btn btn-primary btn-block btn-lg" href="{{ url_for('public.index') }}">Spil igen</a>
+      <a class="btn btn-ghost btn-block" href="{{ url_for('public.highscores', svaerhed=game.difficulty) }}">Highscores</a>
+    </div>
+  </section>
+
+  <p class="game-error" id="game-error" role="alert" hidden></p>
+  <audio id="audio" preload="auto"></audio>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/game.js') }}" defer></script>
+{% endblock %}

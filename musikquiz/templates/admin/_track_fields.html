@@ -1,0 +1,38 @@
+{# Fælles felter for upload og redigering. Forventer `form`, `suggestions`, `difficulties`. #}
+<div class="form-grid">
+  <label class="form-field">
+    <span>Titel</span>
+    <input type="text" name="title" value="{{ form.title or '' }}" maxlength="200" required>
+  </label>
+  <label class="form-field">
+    <span>Artist</span>
+    <input type="text" name="artist" value="{{ form.artist or '' }}" maxlength="200" list="artist-list" required autocomplete="off">
+  </label>
+  <label class="form-field">
+    <span>Genre</span>
+    <input type="text" name="genre" value="{{ form.genre or '' }}" maxlength="200" list="genre-list" required autocomplete="off">
+  </label>
+  <label class="form-field">
+    <span>Start ved <small class="muted">(sek. eller mm:ss)</small></span>
+    <input type="text" name="start_at" value="{% if form.start_at is number %}{{ '%g'|format(form.start_at) if form.start_at else '' }}{% else %}{{ form.start_at or '' }}{% endif %}" placeholder="0" inputmode="decimal">
+  </label>
+</div>
+
+<fieldset class="form-field">
+  <legend>Sværhedsgrad</legend>
+  <div class="segmented">
+    {% for d in difficulties %}
+      <label class="segment">
+        <input type="radio" name="difficulty" value="{{ d }}" {{ 'checked' if form.difficulty == d }} required>
+        <span>{{ DIFFICULTY_LABELS[d] }}</span>
+      </label>
+    {% endfor %}
+  </div>
+</fieldset>
+
+<datalist id="artist-list">
+  {% for a in suggestions.artists %}<option value="{{ a }}">{% endfor %}
+</datalist>
+<datalist id="genre-list">
+  {% for g in suggestions.genres %}<option value="{{ g }}">{% endfor %}
+</datalist>

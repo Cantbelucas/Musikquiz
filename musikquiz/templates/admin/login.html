@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Admin-login — Musikquiz{% endblock %}
+{% block main_class %}container container-narrow{% endblock %}
+{% block content %}
+<form class="card form-stack login-card" method="post">
+  <h1>Admin-login</h1>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <label class="form-field">
+    <span>Brugernavn</span>
+    <input type="text" name="username" autocomplete="username" required autofocus>
+  </label>
+  <label class="form-field">
+    <span>Adgangskode</span>
+    <input type="password" name="password" autocomplete="current-password" required>
+  </label>
+  <button type="submit" class="btn btn-primary btn-block">Log ind</button>
+</form>
+{% endblock %}

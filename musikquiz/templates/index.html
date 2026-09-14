@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="hero">
+  <h1>Hvor hurtigt kan du genkende sangen?</h1>
+  <p class="lead">Du hører først <strong>1 sekund</strong>. Så 2, 5 og 10. Jo hurtigere du gætter rigtigt, jo flere point.</p>
+</section>
+
+{% if total_tracks == 0 %}
+  <section class="card empty">
+    <h2>Der er ingen sange endnu</h2>
+    <p class="muted">En administrator skal uploade nogle lydfiler, før der kan spilles.</p>
+    <a class="btn btn-secondary" href="{{ url_for('admin.dashboard') }}">Gå til admin</a>
+  </section>
+{% else %}
+<form class="card start-form" method="post" action="{{ url_for('public.start_game') }}" id="start-form">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+  <fieldset class="field">
+    <legend>Kategori</legend>
+    <div class="segmented" role="radiogroup">
+      {% for key in ["all", "artist", "genre"] %}
+        <label class="segment">
+          <input type="radio" name="category" value="{{ key }}" {{ 'checked' if key == 'all' }}>
+          <span>{{ CATEGORY_LABELS[key] }}</span>
+        </label>
+      {% endfor %}
+    </div>
+
+    <div class="category-value" data-category="artist">
+      <label class="sr-only" for="value_artist">Vælg artist</label>
+      <select name="value_artist" id="value_artist" class="select">
+        {% for name in availability.artist|sort(case_sensitive=false) %}
+          <option value="{{ name }}">{{ name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="category-value" data-category="genre">
+      <label class="sr-only" for="value_genre">Vælg genre</label>
+      <select name="value_genre" id="value_genre" class="select">
+        {% for name in availability.genre|sort(case_sensitive=false) %}
+          <option value="{{ name }}">{{ name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </fieldset>
+
+  <fieldset class="field">
+    <legend>Sværhedsgrad</legend>
+    <div class="difficulty-grid">
+      {% for key in ["easy", "medium", "hard"] %}
+        <label class="difficulty diff-{{ key }}">
+          <input type="radio" name="difficulty" value="{{ key }}" {{ 'checked' if loop.first }}>
+          <span class="difficulty-name">{{ DIFFICULTY_LABELS[key] }}</span>
+          <span class="difficulty-count" data-count-for="{{ key }}">{{ availability.all.get(key, 0) }} sange</span>
+        </label>
+      {% endfor %}
+    </div>
+  </fieldset>
+
+  <p class="round-info muted" id="round-info">En runde er {{ round_length }} sange.</p>
+
+  <button type="submit" class="btn btn-primary btn-block btn-lg" id="start-btn">Start runde</button>
+</form>
+
+<script type="application/json" id="availability-data">{{ {"availability": availability, "round_length": round_length}|tojson }}</script>
+{% endif %}
+
+<section class="how">
+  <h2>Sådan får du point</h2>
+  <ol class="points-table">
+    {% for seconds, points in stages %}
+      <li><span class="pt-sec">{{ seconds }} sek</span><span class="pt-val">{{ points }} point</span></li>
+    {% endfor %}
+  </ol>
+  <p class="muted small">Forkert gæt eller skip giver et længere klip. Gætter du ikke efter {{ stages[-1][0] }} sekunder, får du svaret og 0 point.</p>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/start.js') }}" defer></script>
+{% endblock %}

@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+{% block title %}{{ genre.name }} — Genrer — Musikquiz{% endblock %}
+{% block main_class %}container container-wide{% endblock %}
+{% block content %}
+{% set admin_section = 'genres' %}
+{% include "admin/_nav.html" %}
+
+<p><a href="{{ url_for('admin_genres.index') }}">← Alle genrer</a></p>
+<div class="admin-head">
+  <div>
+    <h1 class="page-title">{{ genre.name }}</h1>
+    <p class="muted">
+      Kilde: <span class="chip source-{{ genre.source }}">{{ source_labels.get(genre.source, genre.source) }}</span>
+      · {{ stats.playable }} spor i quizzen
+    </p>
+  </div>
+</div>
+
+{% if genre.source == 'itunes' %}
+<section class="card">
+  <h2>Cache</h2>
+  <div class="stat-grid">
+    {% for d in difficulties %}
+      <div class="stat"><span class="stat-value">{{ stats.by_difficulty[d] }}</span><span class="stat-label"><span class="chip chip-{{ d }}">{{ DIFFICULTY_LABELS[d] }}</span></span></div>
+    {% endfor %}
+    <div class="stat"><span class="stat-value">{{ stats.cached_total }}</span><span class="stat-label">cachede i alt</span></div>
+    <div class="stat"><span class="stat-value">{{ stats.hidden }}</span><span class="stat-label">skjult</span></div>
+    <div class="stat"><span class="stat-value">{{ stats.dead }}</span><span class="stat-label">uden preview</span></div>
+  </div>
+  <p class="muted small">
+    {{ terms|length }} søgetermer{% if stats.terms_missing %} · <strong class="text-warn">{{ stats.terms_missing }} ikke hentet endnu</strong>{% endif %}
+    {% if stats.last_fetched %} · senest hentet {{ stats.last_fetched }} (UTC){% endif %}
+  </p>
+
+  <form method="post" action="{{ url_for('admin_genres.fill_cache', genre_id=genre.id) }}" class="cache-actions">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button type="submit" class="btn btn-primary" data-cache-url="{{ url_for('admin_genres.fill_cache', genre_id=genre.id) }}"
+            data-cache-terms="{{ terms|length }}" data-cache-status="cache-log">Forudfyld cache</button>
+    <button type="submit" name="refresh" value="1" class="btn btn-secondary" data-cache-url="{{ url_for('admin_genres.fill_cache', genre_id=genre.id) }}"
+            data-cache-terms="{{ terms|length }}" data-cache-status="cache-log" data-cache-refresh="1">Hent alt igen</button>
+  </form>
+  <p class="field-help">
+    <strong>Forudfyld</strong> henter kun søgetermer der mangler eller er ældre end cachens levetid — resten tages fra databasen.
+    <strong>Hent alt igen</strong> kalder API'et for alle termer. iTunes tillader ca. 20 opslag i minuttet, så det tager ca. 3 sekunder pr. term.
+  </p>
+  <ol class="cache-log" id="cache-log" hidden></ol>
+</section>
+{% endif %}
+
+<section class="card">
+  <h2>Indstillinger</h2>
+  <form method="post" class="form-stack">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {% include "admin/_genre_fields.html" %}
+    <button type="submit" class="btn btn-primary">Gem genre</button>
+  </form>
+  {% if genre.source == 'local' %}
+    <p class="muted small">{{ stats.playable }} uploadede sange bruger denne genre. <a href="{{ url_for('admin.dashboard') }}">Gå til uploadede sange</a></p>
+  {% endif %}
+</section>
+
+{% if genre.source == 'itunes' %}
+<section class="card">
+  <div class="table-head">
+    <h2>Cachede spor <span class="muted small">({{ track_total }})</span></h2>
+    <form method="get" class="inline-form search-form">
+      <input type="hidden" name="vis" value="{{ track_view }}">
+      <select name="svaerhed" class="select select-small" aria-label="Sværhedsgrad">
+        <option value="">Alle sværhedsgrader</option>
+        {% for d in difficulties %}<option value="{{ d }}" {{ 'selected' if track_difficulty == d }}>{{ DIFFICULTY_LABELS[d] }}</option>{% endfor %}
+      </select>
+      <input type="search" name="q" value="{{ track_q }}" placeholder="Søg titel eller artist">
+      <button type="submit" class="btn btn-secondary">Søg</button>
+    </form>
+  </div>
+  <nav class="tabs" aria-label="Vis">
+    {% for v, label in [('synlige', 'I quizzen'), ('skjulte', 'Skjulte'), ('uden-preview', 'Uden preview')] %}
+      <a class="tab {{ 'is-active' if track_view == v }}" href="{{ url_for('admin_genres.edit', genre_id=genre.id, vis=v, svaerhed=track_difficulty or None, q=track_q or None) }}">{{ label }}</a>
+    {% endfor %}
+  </nav>
+
+  {% if tracks %}
+  <div class="table-wrap">
+    <table class="track-table">
+      <thead>
+        <tr><th>Sang</th><th>Søgeterm</th><th>Fra</th><th>Sværhedsgrad</th><th class="sr-only">Handlinger</th></tr>
+      </thead>
+      <tbody>
+      {% for t in tracks %}
+        <tr>
+          <td data-label="Sang"><strong>{{ t.title }}</strong><br><span class="muted small">{{ t.artist }}</span></td>
+          <td data-label="Søgeterm" class="small">{{ t.search_term }}</td>
+          <td data-label="Fra" class="small">{{ 'Deezer' if t.provider == 'deezer' else 'iTunes' }}</td>
+          <td data-label="Sværhed">
+            <form method="post" action="{{ url_for('admin_genres.update_track', cache_id=t.id) }}" class="inline-form">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="next" value="{{ request.full_path }}">
+              <select name="difficulty" class="select select-small" data-track-url="{{ url_for('admin_genres.update_track', cache_id=t.id) }}" aria-label="Sværhedsgrad for {{ t.title }}">
+                <option value="" {{ 'selected' if not t.difficulty_override }}>Auto ({{ DIFFICULTY_LABELS[t.auto_difficulty] }})</option>
+                {% for d in difficulties %}
+                  <option value="{{ d }}" {{ 'selected' if t.difficulty_override == d }}>{{ DIFFICULTY_LABELS[d] }}</option>
+                {% endfor %}
+              </select>
+              <noscript><button type="submit" class="btn btn-small btn-secondary">Gem</button></noscript>
+            </form>
+          </td>
+          <td class="row-actions">
+            {% if t.preview_ok %}
+              <button type="button" class="btn btn-small btn-secondary preview-btn" data-src="{{ url_for('admin_genres.preview', cache_id=t.id) }}" data-start="0" aria-label="Afspil">▶</button>
+            {% endif %}
+            <form method="post" action="{{ url_for('admin_genres.update_track', cache_id=t.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="next" value="{{ request.full_path }}">
+              <input type="hidden" name="hidden" value="{{ '0' if t.hidden else '1' }}">
+              <button type="submit" class="btn btn-small {{ 'btn-secondary' if t.hidden else 'btn-danger' }}">{{ 'Vis igen' if t.hidden else 'Skjul' }}</button>
+            </form>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if pages > 1 %}
+  <nav class="pager">
+    {% if page > 1 %}<a class="btn btn-small btn-secondary" href="{{ url_for('admin_genres.edit', genre_id=genre.id, vis=track_view, svaerhed=track_difficulty or None, q=track_q or None, side=page - 1) }}">← Forrige</a>{% endif %}
+    <span class="muted small">Side {{ page }} af {{ pages }}</span>
+    {% if page < pages %}<a class="btn btn-small btn-secondary" href="{{ url_for('admin_genres.edit', genre_id=genre.id, vis=track_view, svaerhed=track_difficulty or None, q=track_q or None, side=page + 1) }}">Næste →</a>{% endif %}
+  </nav>
+  {% endif %}
+  {% else %}
+    <p class="muted">{{ 'Ingen spor matcher.' if (track_q or track_difficulty or track_view != 'synlige') else 'Ingen cachede spor endnu — tryk Forudfyld cache.' }}</p>
+  {% endif %}
+</section>
+{% endif %}
+
+<section class="card danger-zone">
+  <h2>Slet genre</h2>
+  {% if genre.source == 'local' and stats.playable %}
+    <p class="muted">Genren har {{ stats.playable }} uploadede sange og kan ikke slettes. Flyt eller slet sangene først.</p>
+  {% else %}
+    <form method="post" action="{{ url_for('admin_genres.delete', genre_id=genre.id) }}" data-confirm="Slet genren “{{ genre.name }}”?{{ ' Cachede spor for genren slettes også.' if genre.source == 'itunes' }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit" class="btn btn-danger">Slet genre</button>
+    </form>
+  {% endif %}
+</section>
+<audio id="preview-audio" preload="none"></audio>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/admin.js') }}" defer></script>
+{% endblock %}

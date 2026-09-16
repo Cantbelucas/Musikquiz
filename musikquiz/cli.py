@@ -1,4 +1,8 @@
-"""CLI-kommandoer:  flask --app wsgi import-dir /data/import --genre Pop --difficulty easy"""
+"""CLI-kommandoer:
+
+  flask --app wsgi import-dir /data/import --genre Pop --difficulty easy
+  flask --app wsgi cache-genres [GENRE ...] [--refresh]
+"""
 from __future__ import annotations
 
 import csv
@@ -7,8 +11,9 @@ import os
 import click
 from flask import current_app
 
-from . import library
+from . import genres, library
 from .db import get_db
+from .sources import get_itunes
 
 
 def register_cli(app) -> None:
@@ -50,6 +55,10 @@ def register_cli(app) -> None:
                 meta_src = {"artist": artist, "title": title, "genre": genre, "difficulty": difficulty}
 
             meta, errors = library.clean_metadata(meta_src)
+            if not errors:
+                genre_error = _ensure_local_genre(db, meta, dry_run)
+                if genre_error:
+                    errors.append(genre_error)
             if errors:
                 click.echo(f"SKIP  {name}: {' '.join(errors)}")
                 skipped += 1
@@ -81,3 +90,56 @@ def register_cli(app) -> None:
 
         verb = "ville blive importeret" if dry_run else "importeret"
         click.echo(f"\n{imported} {verb}, {skipped} sprunget over.")
+
+    @app.cli.command("cache-genres")
+    @click.argument("names", nargs=-1)
+    @click.option("--refresh", is_flag=True, help="Kald API'et for alle søgetermer, også dem der er i cachen.")
+    def cache_genres(names, refresh):
+        """Forudfyld cachen for iTunes-genrer (alle, hvis ingen navne angives).
+
+        Uden --refresh hentes kun søgetermer der mangler eller er ældre end CATALOG_CACHE_DAYS.
+        Egnet til et natligt cron-job.
+        """
+        db = get_db()
+        itunes = get_itunes()
+        rows = db.execute("SELECT * FROM genres WHERE source = 'itunes' ORDER BY name COLLATE NOCASE").fetchall()
+        if names:
+            wanted = {n.casefold() for n in names}
+            unknown = wanted - {r["name"].casefold() for r in rows}
+            for name in sorted(unknown):
+                click.echo(f"SKIP  {name}: ingen iTunes-genre med det navn")
+            rows = [r for r in rows if r["name"].casefold() in wanted]
+
+        mode = "refresh" if refresh else "stale"
+        failures = 0
+        for genre in rows:
+            click.echo(f"{genre['name']}:")
+            result = itunes.cache_genre(genre, mode=mode)
+            for term in result["terms"]:
+                if term["error"]:
+                    failures += 1
+                    click.echo(f"  FEJL  {term['term']}: {term['error']}")
+                else:
+                    how = "hentet" if term["fetched"] else "cache"
+                    click.echo(f"  OK    {term['term']}: {term['found']} sange ({term['provider'] or 'ingen'}, {how})")
+            counts = result["by_difficulty"]
+            click.echo(
+                f"  = {result['playable']} spor i quizzen"
+                f" (let {counts['easy']}, mellem {counts['medium']}, svær {counts['hard']})"
+            )
+        if failures:
+            raise SystemExit(1)
+
+
+def _ensure_local_genre(db, meta: dict, dry_run: bool) -> str | None:
+    """CLI køres af admin: opret manglende genrer som "Egne filer"; afvis iTunes-genrer."""
+    existing = genres.find_genre(db, meta["genre"])
+    if existing is None:
+        if not dry_run:
+            db.execute("INSERT INTO genres (name, source) VALUES (?, 'local')", (meta["genre"],))
+            click.echo(f"NY    genre '{meta['genre']}' oprettet med kilden Egne filer")
+        return None
+    if existing["source"] != "local":
+        return f"genren '{existing['name']}' bruger ikke egne filer"
+    meta["genre"] = existing["name"]
+    return None

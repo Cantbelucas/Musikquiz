@@ -1,0 +1,42 @@
+{# Felter til opret/redigér genre. Forventer `form`, `source_labels`. #}
+<div class="form-stack" data-source-form>
+  <label class="form-field">
+    <span>Navn <small class="muted">(det spillerne ser)</small></span>
+    <input type="text" name="name" value="{{ form.name or '' }}" maxlength="60" required placeholder="fx Rap, Dansk undergrund">
+  </label>
+
+  <fieldset class="form-field">
+    <legend>Kilde <small class="muted">(kun synlig for admin)</small></legend>
+    <div class="segmented">
+      {% for key, label in source_labels.items() %}
+        <label class="segment">
+          <input type="radio" name="source" value="{{ key }}" {{ 'checked' if form.source == key }} required>
+          <span>{{ label }}</span>
+        </label>
+      {% endfor %}
+    </div>
+  </fieldset>
+
+  <p class="field-help" data-source-only="local">
+    Genren bygger på dine uploadede sange. Vælg genren når du uploader under <em>Uploadede sange</em>.
+  </p>
+
+  <div class="form-stack" data-source-only="itunes">
+    <label class="form-field">
+      <span>Søgetermer <small class="muted">(én pr. linje, højst 25)</small></span>
+      <textarea name="search_terms" rows="6" placeholder="rap&#10;hip hop&#10;artist:Kendrick Lamar&#10;artist:Drake">{{ form.search_terms or '' }}</textarea>
+    </label>
+    <p class="field-help">
+      Hver term søges i iTunes (op til 200 sange). Finder iTunes intet med preview, prøves Deezer.
+      Skriv <code>artist:Navn</code> for kun at søge på kunstnernavn — det giver mest præcise genrer.
+      Tidligt i søgeresultatet = <em>Let</em>, sidst = <em>Svær</em>. Du kan rette det pr. sang bagefter.
+    </p>
+    <label class="form-field">
+      <span>iTunes-genrefilter <small class="muted">(valgfrit, kommasepareret)</small></span>
+      <input type="text" name="genre_filter" value="{{ form.genre_filter or '' }}" maxlength="300" placeholder="fx Hip-Hop/Rap, R&B/Soul">
+    </label>
+    <p class="field-help">
+      Beholder kun iTunes-resultater hvis genre indeholder et af ordene. Gælder ikke Deezer-resultater (Deezer oplyser ikke genre i søgninger).
+    </p>
+  </div>
+</div>

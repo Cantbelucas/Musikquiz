@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}Genrer — Musikquiz{% endblock %}
+{% block main_class %}container container-wide{% endblock %}
+{% block content %}
+{% set admin_section = 'genres' %}
+{% include "admin/_nav.html" %}
+
+<div class="admin-head">
+  <div>
+    <h1 class="page-title">Genrer</h1>
+    <p class="muted">Kun genrer du opretter her kan spilles. Spillerne ser genrenavnet — aldrig kilden.</p>
+  </div>
+</div>
+
+<section class="card">
+  {% if rows %}
+  <div class="table-wrap">
+    <table class="track-table genre-table">
+      <thead>
+        <tr><th>Genre</th><th>Kilde</th><th>Spor i quizzen</th><th>Cache</th><th class="sr-only">Handlinger</th></tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+          {% set g = row.genre %}{% set s = row.stats %}
+          <tr>
+            <td data-label="Genre"><a href="{{ url_for('admin_genres.edit', genre_id=g.id) }}"><strong>{{ g.name }}</strong></a></td>
+            <td data-label="Kilde"><span class="chip source-{{ g.source }}">{{ source_labels.get(g.source, g.source) }}</span></td>
+            <td data-label="Spor">
+              <strong>{{ s.playable }}</strong>
+              {% if g.source == 'itunes' %}
+                <span class="muted small">· {% for d in difficulties %}{{ DIFFICULTY_LABELS[d] }} {{ s.by_difficulty[d] }}{{ ' · ' if not loop.last }}{% endfor %}</span>
+              {% endif %}
+            </td>
+            <td data-label="Cache" class="small">
+              {% if g.source == 'itunes' %}
+                {% if s.terms_missing %}
+                  <span class="badge badge-warn">{{ s.terms_missing }} af {{ row.terms|length }} søgetermer ikke hentet</span>
+                {% else %}
+                  <span class="muted">{{ row.terms|length }} søgetermer · hentet {{ (s.last_fetched or '')[:10] }}</span>
+                {% endif %}
+              {% else %}
+                <span class="muted">—</span>
+              {% endif %}
+            </td>
+            <td class="row-actions">
+              {% if g.source == 'itunes' %}
+                <button type="button" class="btn btn-small btn-secondary" data-cache-url="{{ url_for('admin_genres.fill_cache', genre_id=g.id) }}"
+                        data-cache-terms="{{ row.terms|length }}" data-cache-status="cache-status-{{ g.id }}">Forudfyld</button>
+              {% endif %}
+              <a class="btn btn-small btn-secondary" href="{{ url_for('admin_genres.edit', genre_id=g.id) }}">Redigér</a>
+            </td>
+          </tr>
+          {% if g.source == 'itunes' %}
+          <tr class="cache-status-row" id="cache-status-{{ g.id }}" hidden><td colspan="5"><span class="cache-status small muted"></span></td></tr>
+          {% endif %}
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    <p class="muted">Ingen genrer endnu. Opret den første herunder.</p>
+  {% endif %}
+</section>
+
+<section class="card" id="ny">
+  <h2>Opret genre</h2>
+  <form method="post" action="{{ url_for('admin_genres.create') }}" class="form-stack">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {% include "admin/_genre_fields.html" %}
+    <button type="submit" class="btn btn-primary">Opret genre</button>
+  </form>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/admin.js') }}" defer></script>
+{% endblock %}

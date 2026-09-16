@@ -5,7 +5,7 @@
   <p class="lead">Du hører først <strong>1 sekund</strong>. Så 2, 5 og 10. Jo hurtigere du gætter rigtigt, jo flere point.</p>
 </section>
 
-{% if total_tracks == 0 %}
+{% if total_tracks == 0 and not availability.pending %}
   <section class="card empty">
     <h2>Der er ingen sange endnu</h2>
     <p class="muted">En administrator skal uploade nogle lydfiler, før der kan spilles.</p>

@@ -16,7 +16,7 @@ from flask import (
     url_for,
 )
 
-from .. import library
+from .. import genres, library
 from ..db import get_db
 from ..security import (
     admin_required,
@@ -95,10 +95,21 @@ def dashboard():
     )
 
 
+def _check_genre(db, meta: dict, errors: list[str]) -> None:
+    if not meta.get("genre"):
+        return
+    canonical = genres.resolve_local_genre(db, meta["genre"])
+    if canonical is None:
+        errors.append("Vælg en genre med kilden “Egne filer”. Genrer oprettes under Genrer.")
+    else:
+        meta["genre"] = canonical
+
+
 def _suggestions(db) -> dict:
     return {
         "artists": [r[0] for r in db.execute("SELECT DISTINCT artist FROM tracks ORDER BY artist COLLATE NOCASE")],
-        "genres": [r[0] for r in db.execute("SELECT DISTINCT genre FROM tracks ORDER BY genre COLLATE NOCASE")],
+        # Kun admin-genrer med kilden "Egne filer" kan vælges til uploadede sange
+        "genres": genres.local_genre_names(db),
     }
 
 
@@ -106,6 +117,7 @@ def _suggestions(db) -> dict:
 @admin_required
 def upload():
     meta, errors = library.clean_metadata(request.form)
+    _check_genre(get_db(), meta, errors)
     upload_file = request.files.get("file")
     if not upload_file or not upload_file.filename:
         errors.append("Vælg en lydfil (mp3 eller wav).")
@@ -140,6 +152,7 @@ def edit(track_id: int):
         abort(404)
     if request.method == "POST":
         meta, errors = library.clean_metadata(request.form)
+        _check_genre(db, meta, errors)
         if errors:
             for e in errors:
                 flash(e)

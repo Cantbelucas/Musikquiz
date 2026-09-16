@@ -2,15 +2,13 @@
 {% block title %}Admin — Musikquiz{% endblock %}
 {% block main_class %}container container-wide{% endblock %}
 {% block content %}
+{% set admin_section = 'tracks' %}
+{% include "admin/_nav.html" %}
 <div class="admin-head">
   <div>
-    <h1 class="page-title">Sange</h1>
+    <h1 class="page-title">Uploadede sange</h1>
     <p class="muted">{{ total }} i alt · {% for d in difficulties %}{{ DIFFICULTY_LABELS[d] }}: {{ stats[d] }}{{ ' · ' if not loop.last }}{% endfor %}</p>
   </div>
-  <form method="post" action="{{ url_for('admin.logout') }}">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <button type="submit" class="btn btn-ghost">Log ud</button>
-  </form>
 </div>
 
 <section class="card" id="upload">

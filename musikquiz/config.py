@@ -26,8 +26,10 @@ class Config:
         )
         self.MEDIA_DIR = os.environ.get("MEDIA_DIR", os.path.join(self.DATA_DIR, "media"))
 
-        # Hvilken lydkilde quizzen bruger. Kun "local" findes i denne version.
-        self.TRACK_SOURCE = os.environ.get("TRACK_SOURCE", "local")
+        # iTunes/Deezer-kilden (genrer med kilden "iTunes"). Ingen nøgler — kun uautentificerede kald.
+        self.ITUNES_COUNTRY = os.environ.get("ITUNES_COUNTRY", "DK").strip().upper() or "DK"
+        self.CATALOG_CACHE_DAYS = _int("CATALOG_CACHE_DAYS", 30)
+        self.CATALOG_TIMEOUT = _int("CATALOG_TIMEOUT", 10)
 
         self.ROUND_LENGTH = _int("ROUND_LENGTH", 10)
         self.CHOICES = _int("CHOICES", 6)

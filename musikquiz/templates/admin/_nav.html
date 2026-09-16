@@ -1,0 +1,11 @@
+{# Admin-undermenu. Forventer `admin_section` = 'tracks' | 'genres'. #}
+<div class="admin-nav">
+  <nav class="tabs" aria-label="Admin">
+    <a class="tab {{ 'is-active' if admin_section == 'tracks' }}" href="{{ url_for('admin.dashboard') }}">Uploadede sange</a>
+    <a class="tab {{ 'is-active' if admin_section == 'genres' }}" href="{{ url_for('admin_genres.index') }}">Genrer</a>
+  </nav>
+  <form method="post" action="{{ url_for('admin.logout') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button type="submit" class="btn btn-ghost btn-small">Log ud</button>
+  </form>
+</div>

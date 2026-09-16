@@ -18,6 +18,15 @@
     return el ? el.value : null;
   }
 
+  const pending = new Set(availability.pending || []);
+
+  // Genre hvis sange hentes først når runden startes (antal kendes ikke endnu)
+  function isPending(category) {
+    if (category !== "genre") return false;
+    const select = form.querySelector('select[name="value_genre"]');
+    return !!select && pending.has(select.value);
+  }
+
   function countsFor(category) {
     if (category === "all") return availability.all;
     const select = form.querySelector(`select[name="value_${category}"]`);
@@ -31,12 +40,20 @@
     });
 
     const counts = countsFor(category);
+    const unknown = isPending(category);
     levels.forEach((level) => {
       const n = counts[level] || 0;
       const label = form.querySelector(`[data-count-for="${level}"]`);
-      label.textContent = n === 1 ? "1 sang" : `${n} sange`;
-      label.closest(".difficulty").classList.toggle("is-empty", n === 0);
+      label.textContent = unknown ? "–" : n === 1 ? "1 sang" : `${n} sange`;
+      label.closest(".difficulty").classList.toggle("is-empty", !unknown && n === 0);
     });
+
+    if (unknown) {
+      info.textContent = "Sangene til denne genre hentes, når runden starter — det kan tage lidt tid.";
+      info.classList.remove("is-warning");
+      startBtn.disabled = false;
+      return;
+    }
 
     const n = counts[selected("difficulty")] || 0;
     info.classList.toggle("is-warning", n > 0 && n < roundLength);
@@ -53,7 +70,9 @@
 
   // Vælg automatisk en sværhedsgrad der har sange, hvis den valgte er tom.
   function ensureDifficultyWithSongs() {
-    const counts = countsFor(selected("category"));
+    const category = selected("category");
+    if (isPending(category)) return;
+    const counts = countsFor(category);
     if ((counts[selected("difficulty")] || 0) > 0) return;
     const first = levels.find((l) => (counts[l] || 0) > 0);
     if (first) form.querySelector(`input[name="difficulty"][value="${first}"]`).checked = true;
@@ -61,6 +80,16 @@
 
   form.addEventListener("change", (event) => {
     if (event.target.name !== "difficulty") ensureDifficultyWithSongs();
+    update();
+  });
+
+  form.addEventListener("submit", () => {
+    startBtn.disabled = true;
+    startBtn.textContent = "Starter runden…";
+  });
+  // Tilbage-knappen kan vise den cachede side med deaktiveret knap
+  window.addEventListener("pageshow", () => {
+    startBtn.textContent = "Start runde";
     update();
   });
 

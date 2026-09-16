@@ -45,6 +45,8 @@ class Availability:
     all: dict[str, int] = field(default_factory=dict)  # difficulty -> antal
     artist: dict[str, dict[str, int]] = field(default_factory=dict)  # navn -> difficulty -> antal
     genre: dict[str, dict[str, int]] = field(default_factory=dict)
+    # Genrer hvis sange endnu ikke er hentet; de hentes når første runde starter
+    pending: list[str] = field(default_factory=list)
 
 
 class TrackSource(ABC):

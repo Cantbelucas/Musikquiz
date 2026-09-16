@@ -10,7 +10,17 @@
   </label>
   <label class="form-field">
     <span>Genre</span>
-    <input type="text" name="genre" value="{{ form.genre or '' }}" maxlength="200" list="genre-list" required autocomplete="off">
+    {% if suggestions.genres %}
+      {% set current_genre = (form.genre or '')|lower %}
+      <select name="genre" class="select" required>
+        <option value="" {{ 'selected' if not current_genre }} disabled>Vælg genre</option>
+        {% for g in suggestions.genres %}
+          <option value="{{ g }}" {{ 'selected' if g|lower == current_genre }}>{{ g }}</option>
+        {% endfor %}
+      </select>
+    {% else %}
+      <em class="field-note">Ingen genrer med kilden “Egne filer” endnu. <a href="{{ url_for('admin_genres.index') }}">Opret en genre</a> først.</em>
+    {% endif %}
   </label>
   <label class="form-field">
     <span>Start ved <small class="muted">(sek. eller mm:ss)</small></span>
@@ -32,7 +42,4 @@
 
 <datalist id="artist-list">
   {% for a in suggestions.artists %}<option value="{{ a }}">{% endfor %}
-</datalist>
-<datalist id="genre-list">
-  {% for g in suggestions.genres %}<option value="{{ g }}">{% endfor %}
 </datalist>

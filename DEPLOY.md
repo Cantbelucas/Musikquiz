@@ -13,6 +13,7 @@ Appen er **helt uafhængig** af dine andre apps:
 | Port | `127.0.0.1:8091` → container `8000` |
 | Data | `./data` → `/data` (SQLite: `data/musikquiz.sqlite3`, lyd: `data/media/`) |
 | Bruger i containeren | uid/gid `10001` |
+| Udgående trafik | HTTPS til `itunes.apple.com`, `audio-ssl.itunes.apple.com`, `api.deezer.com`, `*.dzcdn.net` (kun for genrer med kilden iTunes) |
 
 ---
 
@@ -43,6 +44,10 @@ chmod 600 .env
 ```
 
 Mindst `SECRET_KEY` og `ADMIN_PASSWORD` skal udfyldes. Behold `SESSION_COOKIE_SECURE=true` og `PROXY_COUNT=1` bag nginx + HTTPS.
+
+`ITUNES_COUNTRY` (standard `DK`) bestemmer hvilket iTunes-katalog der søges i. Der skal ingen API-nøgler til iTunes eller Deezer.
+
+> Har du en firewall med begrænset udgående trafik, skal containeren kunne nå `itunes.apple.com`, `audio-ssl.itunes.apple.com`, `api.deezer.com` og `*.dzcdn.net` på port 443. Previews hentes af serveren og streames videre til browseren — spillernes browsere kontakter aldrig Apple eller Deezer.
 
 ## 3. Byg og start
 
@@ -153,26 +158,82 @@ Appen bruger klientens IP til at begrænse forkerte admin-logins. Bag Cloudflare
 1. **DNS** → tilføj `quiz` (CNAME eller A som dine andre subdomæner), **Proxied** (orange cloud).
 2. **SSL/TLS** → *Full (strict)* (som dine øvrige subdomæner).
 3. Cloudflare's gratis plan tillader uploads op til 100 MB — fint med `MAX_UPLOAD_MB=50`.
+   Cloudflare afbryder svar der tager over 100 sekunder (fejl 524). Det kan ske, hvis en spiller starter den allerførste runde i en iTunes-genre med mange søgetermer, som aldrig er hentet. **Forudfyld derfor cachen** for nye iTunes-genrer (se nedenfor).
 4. Slå **Rocket Loader** fra for subdomænet, hvis det er slået til — appen har en streng Content-Security-Policy, og Rocket Loader omskriver scripts.
 
 Åbn `https://quiz.example.dk` — og `https://quiz.example.dk/admin/` for at logge ind.
 
 ---
 
+## Genrer
+
+Spillerne kan kun vælge genrer, som du har oprettet. Gå til `https://quiz.example.dk/admin/genrer/`.
+
+For hver genre vælger du **én kilde**. Spillerne ser aldrig kilden — kun navnet.
+
+### Genre med kilden "Egne filer"
+
+1. Opret genren med et navn, fx `Dansk undergrund`, og kilden **Egne filer**.
+2. Upload sange til den (se *Sådan lægger du sange ind* herunder).
+
+### Genre med kilden "iTunes"
+
+1. Opret genren, fx `Rap`, med kilden **iTunes**.
+2. Skriv **søgetermer**, én pr. linje (højst 25). Hver term giver op til 200 sange:
+
+   ```
+   artist:Kendrick Lamar
+   artist:Drake
+   artist:Tyler, The Creator
+   hip hop
+   ```
+
+   `artist:Navn` søger kun på kunstnernavn og giver de mest præcise genrer. Fri tekst (`hip hop`) søger bredt i titler, album og kunstnere.
+3. Valgfrit **iTunes-genrefilter**, fx `Hip-Hop/Rap` — frasorterer iTunes-resultater fra andre genrer. Godt sammen med brede søgetermer.
+4. Tryk **Opret genre**, og derefter **Forudfyld cache** på genrens side. Du ser fremskridt pr. søgeterm. iTunes tillader ca. 20 opslag i minuttet, så det tager ca. 3 sekunder pr. term.
+5. Gennemgå **Cachede spor**:
+   - Sværhedsgraden er sat automatisk ud fra iTunes' resultatrækkefølge (først = Let, sidst = Svær). Vælg en anden i listen for at overskrive — det gemmes med det samme.
+   - Tryk **Skjul** på sange, der ikke hører til genren.
+   - Fanen **Uden preview** viser sange, hvis preview er forsvundet. De kommer aldrig med i en runde.
+
+Finder iTunes ingen sange med preview for en søgeterm, prøves Deezer automatisk. Kolonnen *Fra* viser, hvor en sang kommer fra.
+
+Ændrer du søgetermer eller filter, opdateres listen med det samme fra cachen. Nye termer hentes, når du trykker **Forudfyld cache** (eller ved næste runde i genren). Dine manuelle valg bevares.
+
+### Hold cachen frisk (valgfrit)
+
+Søgninger ældre end `CATALOG_CACHE_DAYS` (standard 30 dage) hentes igen ved næste forudfyldning. Det kan køre automatisk om natten via cron på værten:
+
+```cron
+30 4 * * * cd /opt/musikquiz && docker compose exec -T -u 10001:10001 musikquiz flask cache-genres >> /var/log/musikquiz-cache.log 2>&1
+```
+
+`flask cache-genres Rap Pop` forudfylder kun de nævnte genrer; `--refresh` henter alt igen uanset alder.
+
+### Regler
+
+- En genre med uploadede sange kan ikke slettes eller skifte kilde, før sangene er flyttet eller slettet.
+- Omdøber du en "Egne filer"-genre, følger sangene med.
+- Sletter du en iTunes-genre, slettes dens cachede spor. Selve søgeresultaterne bliver i cachen og genbruges, hvis en anden genre bruger samme søgeterm.
+
+---
+
 ## Sådan lægger du sange ind
+
+Gælder genrer med kilden **Egne filer**. Opret genren først (se ovenfor).
 
 ### Via admin-panelet (en ad gangen)
 
 1. Gå til `https://quiz.example.dk/admin/` og log ind med `ADMIN_USERNAME` / `ADMIN_PASSWORD`.
 2. Under **Upload sang**: vælg en `.mp3` eller `.wav`-fil (maks `MAX_UPLOAD_MB`).
    Hedder filen `Artist - Titel.mp3`, udfyldes artist og titel automatisk.
-3. Udfyld **titel**, **artist**, **genre** og vælg **sværhedsgrad** (Let / Mellem / Svær).
+3. Udfyld **titel** og **artist**, vælg **genre** (kun genrer med kilden Egne filer) og **sværhedsgrad** (Let / Mellem / Svær).
 4. **Start ved** (valgfrit): hvor i sangen klippene starter, i sekunder (`42`) eller `mm:ss` (`1:05`). Brug det til at springe stille intro over eller starte ved omkvædet.
 5. Tryk **Upload**. Genre og sværhedsgrad huskes til næste upload, så det går hurtigt at lægge flere ind i træk.
 
 I biblioteket kan du afspille (▶), redigere og slette sange. Sletning fjerner også lydfilen.
 
-Stavning af artist og genre skal være ens for at sange grupperes — felterne foreslår eksisterende værdier.
+Stavning af artist skal være ens for at sange grupperes — feltet foreslår eksisterende kunstnere.
 
 ### Masse-import fra en mappe
 
@@ -195,6 +256,8 @@ Stavning af artist og genre skal være ens for at sange grupperes — felterne f
    ```
 
    Sange med samme titel + artist som en eksisterende springes over. Filerne kopieres ind i `data/media/`, så `data/import/` kan slettes bagefter.
+
+   Findes genren ikke, oprettes den med kilden **Egne filer**. Sange til en genre med kilden iTunes afvises.
 
 3. Forskellige genrer/sværhedsgrader i samme mappe? Brug en CSV (UTF-8) i stedet for `--genre`/`--difficulty`:
 
@@ -226,9 +289,11 @@ cd /opt/musikquiz
 docker compose up -d --build
 ```
 
-Databaseskemaet oprettes automatisk; data i `./data` bevares.
+Databaseskemaet oprettes og migreres automatisk ved start; data i `./data` bevares.
 
-**Backup** (kan køre mens appen kører):
+**Opgradering fra versionen uden genrer:** tag en backup først (se herunder). Ved første start oprettes tabellerne til genrer og cache, `tracks` får kolonnen `popularity`, og alle eksisterende genrer på dine uploadede sange bliver til admin-genrer med kilden **Egne filer** (`Rock` og `rock` slås sammen til én). Spillet virker som før; opret derefter iTunes-genrer efter behov. Fjern `TRACK_SOURCE` fra din `.env` — den bruges ikke længere.
+
+**Backup** (kan køre mens appen kører — genrer og iTunes-cache ligger i samme database):
 
 ```bash
 docker compose exec -u 10001:10001 musikquiz python -c "import sqlite3; sqlite3.connect('/data/musikquiz.sqlite3').backup(sqlite3.connect('/data/backup.sqlite3'))"
@@ -258,3 +323,7 @@ docker compose down          # data i ./data bevares
 | `502 Bad Gateway` | `docker compose ps` — kører containeren? Er nginx forbundet til `musikquiz_net` (`docker network inspect musikquiz_net`)? |
 | `unable to open database file` / `Permission denied` | Nogen har kørt en kommando som root i `/data`. Kør `docker compose restart` (entrypoint retter ejerskab) og brug altid `-u 10001:10001` med `exec` |
 | Lyden afspilles ikke / klip starter forkert | Tjek at filen spiller under ▶ i admin. Hvis *Start ved* er længere end sangen, er der intet at afspille |
+| iTunes-genre har 0 spor / "Kunne ikke hente" | Se fejlen i forudfyldningens log. `Rate-limit ramt` → vent et par minutter og tryk **Hent alt igen** (*Forudfyld* prøver en fejlet søgeterm tidligst igen efter en time). `Kunne ikke kontakte …` → containeren har ikke udgående HTTPS (firewall/DNS) |
+| iTunes-genre vises ikke for spillerne | Genren har ingen spillbare sange (alle skjult eller uden preview), eller søgetermerne har aldrig givet resultater. Tjek genrens side i admin |
+| `524` fra Cloudflare når en runde startes | Første runde i en genre der aldrig er hentet tog over 100 sekunder. Forudfyld cachen i admin |
+| Lyd fra iTunes-genre giver `502` | Appen kunne ikke nå Apple/Deezers CDN. Tjek udgående trafik fra containeren: `docker compose exec musikquiz python -c "import urllib.request; print(urllib.request.urlopen('https://itunes.apple.com/search?term=test&limit=1').status)"` |

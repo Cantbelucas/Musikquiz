@@ -72,10 +72,12 @@ def create_app(overrides: dict | None = None) -> Flask:
 
     from .cli import register_cli
     from .views.admin import bp as admin_bp
+    from .views.admin_genres import bp as admin_genres_bp
     from .views.public import bp as public_bp
 
     app.register_blueprint(public_bp)
     app.register_blueprint(admin_bp)
+    app.register_blueprint(admin_genres_bp)
     register_cli(app)
     return app
 

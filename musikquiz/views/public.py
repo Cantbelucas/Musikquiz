@@ -16,7 +16,18 @@ from flask import (
 )
 
 from ..db import get_db
-from ..game import FINISHED, PLAYING, REVEALED, STAGES, GameError, create_game, load_game, locked_game
+from ..game import (
+    FINISHED,
+    PLAYING,
+    REVEALED,
+    STAGES,
+    GameConflict,
+    GameError,
+    create_game,
+    game_update,
+    load_game,
+    locked_game,
+)
 from ..security import preview_signature
 from ..sources import CATEGORY_TYPES, DIFFICULTIES, Criteria, get_source
 
@@ -51,7 +62,10 @@ def start_game():
         return redirect(url_for(".index"))
 
     cfg = current_app.config
-    game = create_game(get_db(), get_source(), criteria, cfg["ROUND_LENGTH"], cfg["CHOICES"])
+    source = get_source()
+    # Eneste sted en kilde må hente data udefra (fx en iTunes-genre der aldrig er hentet)
+    source.prepare(criteria)
+    game = create_game(get_db(), source, criteria, cfg["ROUND_LENGTH"], cfg["CHOICES"])
     if game is None:
         flash("Der er ingen sange der matcher dit valg endnu.")
         return redirect(url_for(".index"))
@@ -78,13 +92,19 @@ def _state(game) -> dict:
     return state
 
 
-def _mutate(game_id: str, action):
+def _mutate(game_id: str, action, hold_lock: bool = True):
+    """Udfør en handling på spillet og gem det.
+
+    hold_lock=False bruges til handlinger der kan kalde ud over netværket (næste
+    sang): så holdes skrivelåsen ikke undervejs, og der gemmes optimistisk til sidst.
+    """
+    manager = locked_game if hold_lock else game_update
     try:
-        with locked_game(get_db(), game_id) as game:
+        with manager(get_db(), game_id) as game:
             if game is None:
                 abort(404)
             extra = action(game) or {}
-    except GameError as err:
+    except (GameError, GameConflict) as err:
         return {"error": str(err)}, 409
     return {**_state(game), **extra}
 
@@ -115,7 +135,8 @@ def api_skip(game_id: str):
 @bp.post("/api/spil/<game_id>/naeste")
 def api_next(game_id: str):
     cfg = current_app.config
-    return _mutate(game_id, lambda g: g.next_song(get_source(), cfg["CHOICES"]))
+    # Uden lås: valget af næste sang kan kræve et tjek af previewet over netværket
+    return _mutate(game_id, lambda g: g.next_song(get_source(), cfg["CHOICES"]), hold_lock=False)
 
 
 @bp.get("/spil/<game_id>/lyd/<int:index>")

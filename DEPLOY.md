@@ -271,6 +271,26 @@ For hver genre vælger du **én kilde**. Spillerne ser aldrig kilden — kun nav
 
 Finder iTunes ingen sange med preview for en søgeterm, prøves Deezer automatisk. Kolonnen *Fra* viser, hvor en sang kommer fra.
 
+### Dansk musik
+
+iTunes' danske katalog dækker dansk musik godt: hver dansk kunstner giver typisk ~200 numre med preview. To ting er værd at vide:
+
+- **Brug `artist:`-termer.** Brede danske termer som `dansk rock` rammer alt muligt (fx "Denmark Rocks"), fordi iTunes søger i titler og albumnavne på tværs af sprog.
+- **Genrefilteret kan ikke bruges til at finde "dansk".** iTunes bruger engelske genrenavne (`Pop`, `Rock`, `Hip-Hop/Rap`) også for danske kunstnere — der findes ingen "Dansk"-genre at filtrere på. Det er kunstnerlisten, der afgrænser genren.
+
+Eksempler der virker (testet mod iTunes DK):
+
+| Genre | Søgetermer |
+|---|---|
+| Dansk rock | `artist:Kim Larsen`, `artist:Tv-2`, `artist:Gasolin'`, `artist:D-A-D`, `artist:Nephew`, `artist:Minds of 99`, `artist:Magtens Korridorer` |
+| Dansk pop | `artist:Medina`, `artist:Rasmus Seebach`, `artist:Burhan G`, `artist:Christopher`, `artist:Thomas Helmig`, `artist:Andreas Odbjerg`, `artist:Sanne Salomonsen` |
+| Dansk rap | `artist:Gilli`, `artist:Suspekt`, `artist:Tessa`, `artist:Ukendt Kunstner`, `artist:L.O.C.`, `artist:Kesi`, `artist:Niarn` |
+| Danske klassikere | `artist:Shu-bi-dua`, `artist:Anne Linnet`, `artist:Dodo and the Dodos`, `artist:Kandis`, `artist:Big Fat Snake`, `artist:Lis Sørensen` |
+
+De fire genrer ovenfor giver tilsammen over 3.000 numre, jævnt fordelt på de tre sværhedsgrader. Syv søgetermer tager ca. 25 sekunder at forudfylde.
+
+Vil du have færre, men mere kendte sange i en genre, så brug færre kunstnere: sværhedsgraden følger kunstnerens egen resultatrækkefølge, så med mange kunstnere bliver "Svær" fyldt med b-sider. Du kan også skjule enkelte sange i listen bagefter.
+
 Ændrer du søgetermer eller filter, opdateres listen med det samme fra cachen. Nye termer hentes, når du trykker **Forudfyld cache** (eller ved næste runde i genren). Dine manuelle valg bevares.
 
 ### Hold cachen frisk (valgfrit)

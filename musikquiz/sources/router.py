@@ -47,6 +47,10 @@ class GenreRouter(TrackSource):
             weighted = [(s, n) for s, n in weighted if s is not source]
         return None
 
+    def prepare(self, criteria):
+        for source in self._targets(criteria):
+            source.prepare(criteria)
+
     def count(self, criteria):
         return sum(s.count(criteria) for s in self._targets(criteria))
 

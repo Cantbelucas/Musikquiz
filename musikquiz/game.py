@@ -19,6 +19,10 @@ class GameError(Exception):
     """Ugyldig handling i spillet (fx gæt efter svaret er vist)."""
 
 
+class GameConflict(Exception):
+    """Spillet blev ændret af en anden forespørgsel imens — prøv igen."""
+
+
 @dataclass
 class Option:
     ref: str
@@ -205,6 +209,41 @@ def create_game(db, source: TrackSource, criteria: Criteria, round_length: int, 
 def load_game(db, game_id: str) -> Game | None:
     row = db.execute("SELECT state FROM games WHERE id = ?", (game_id,)).fetchone()
     return Game.from_json(row["state"]) if row else None
+
+
+class game_update:
+    """`with game_update(db, id) as game:` — indlæs, mutér, gem.
+
+    Modsat `locked_game` holdes der INGEN skrivelås, mens blokken kører. Det er
+    nødvendigt for "næste sang", som kan kalde ud over netværket (tjek af preview);
+    med en lås ville alle andre spilleres klik vente imens. I stedet gemmes der til
+    sidst i en kort transaktion, der kun lykkes, hvis runden ikke er ændret i
+    mellemtiden — ellers rejses GameConflict, og klienten kan prøve igen.
+    """
+
+    def __init__(self, db, game_id: str):
+        self.db, self.game_id, self.game, self.version = db, game_id, None, None
+
+    def __enter__(self) -> Game | None:
+        row = self.db.execute("SELECT state, version FROM games WHERE id = ?", (self.game_id,)).fetchone()
+        if row is None:
+            return None
+        self.version = row["version"]
+        self.game = Game.from_json(row["state"])
+        return self.game
+
+    def __exit__(self, exc_type, exc, tb):
+        if exc_type is not None or self.game is None:
+            return False
+        with transaction(self.db):
+            changed = self.db.execute(
+                """UPDATE games SET state = ?, finished = ?, version = version + 1,
+                   updated_at = datetime('now') WHERE id = ? AND version = ?""",
+                (self.game.to_json(), int(self.game.status == FINISHED), self.game.id, self.version),
+            ).rowcount
+        if not changed:
+            raise GameConflict("Runden blev opdateret et andet sted. Prøv igen.")
+        return False
 
 
 class locked_game:

@@ -146,8 +146,14 @@ MIGRATION_2_GENRES_AND_CACHE = [
         SELECT MIN(genre), 'local' FROM tracks GROUP BY genre COLLATE NOCASE""",
 ]
 
+# Optimistisk låsning af spil: gemmer kun hvis ingen anden request har ændret runden.
+MIGRATION_3_GAME_VERSION = [
+    "ALTER TABLE games ADD COLUMN version INTEGER NOT NULL DEFAULT 0",
+]
+
 MIGRATIONS: list[tuple[int, list[str]]] = [
     (2, MIGRATION_2_GENRES_AND_CACHE),
+    (3, MIGRATION_3_GAME_VERSION),
 ]
 
 

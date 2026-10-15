@@ -4,7 +4,7 @@ import sqlite3
 from helpers import create_genre, csrf, login, make_wav, remote, upload
 
 from musikquiz import create_app
-from musikquiz.db import SCHEMA, get_db
+from musikquiz.db import MIGRATIONS, SCHEMA, get_db
 from musikquiz.popularity import set_popularity
 from musikquiz.sources.catalog_api import CatalogClient, CatalogError
 
@@ -89,7 +89,7 @@ def test_migration_turns_existing_track_genres_into_local_genres(tmp_path):
     rows = query(app, "SELECT name, source FROM genres ORDER BY name")
     assert [(r["name"].lower(), r["source"]) for r in rows] == [("dansk pop", "local"), ("rock", "local")]
     assert "popularity" in {r["name"] for r in query(app, "PRAGMA table_info(tracks)")}
-    assert query(app, "PRAGMA user_version")[0]["user_version"] == 2
+    assert query(app, "PRAGMA user_version")[0]["user_version"] == MIGRATIONS[-1][0]
 
     # Idempotent: anden opstart ændrer intet
     create_app({"TESTING": True, "DATABASE_PATH": str(db_path), "MEDIA_DIR": str(tmp_path / "m"), "PROXY_COUNT": 0})
@@ -328,7 +328,7 @@ def test_cli_cache_genres(app, client, catalog):
     assert catalog.api_calls() == [("itunes", "rap")]
 
 
-def test_new_search_term_mid_game_does_not_fetch_inside_game_lock(app, client, catalog):
+def test_new_search_term_is_not_fetched_in_the_middle_of_a_round(app, client, catalog):
     login(client)
     catalog.itunes["rap"] = remote("itunes", 9, "rap")
     create_genre(client, "Rap", "itunes", "rap")

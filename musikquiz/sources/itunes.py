@@ -146,11 +146,12 @@ class ITunesSource(TrackSource):
             skip.append(row["id"])
         return None
 
-    def count(self, criteria):
-        # Hent kun når ingen transaktion er åben: under "næste sang" holder spillet en
-        # skrivelås, og API-kald (med throttling og ventetid) må aldrig ske inde i den.
-        if criteria.category == "genre" and not get_db().in_transaction:
+    def prepare(self, criteria):
+        """Ved start af en runde: hent de søgetermer for genren der aldrig er slået op."""
+        if criteria.category == "genre":
             self.ensure_genre_cached(criteria.value)
+
+    def count(self, criteria):
         where, params = self._where(criteria)
         return get_db().execute(
             f"SELECT COUNT(DISTINCT norm_key) FROM itunes_playable WHERE {where}", params
@@ -528,6 +529,8 @@ class ITunesSource(TrackSource):
     def ensure_genre_cached(self, genre_name: str) -> None:
         """Kaldes når en runde startes: hent kun termer der aldrig er slået op."""
         db = get_db()
+        if db.in_transaction:
+            return  # sikkerhedsnet: aldrig API-kald mens en transaktion er åben
         genre = db.execute(
             "SELECT * FROM genres WHERE name = ? COLLATE NOCASE AND source = 'itunes'", (genre_name,)
         ).fetchone()

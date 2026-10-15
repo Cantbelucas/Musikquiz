@@ -62,13 +62,14 @@ def test_preview_url_is_stable_cacheable_and_hides_the_source(app, client, catal
     assert res.headers["Cache-Control"] == "public, max-age=604800"
     assert "Expires" not in res.headers
 
-    # Samme spor giver samme URL i en ny runde, så nginx/browseren kan genbruge klippet
-    for _ in range(12):
-        state = start_round(client, category="genre", value_genre="Rap")
-        if state["audio_url"] == url:
-            break
-    else:
-        raise AssertionError("samme spor dukkede aldrig op igen")
+    # Samme spor giver samme URL i en ny runde, så nginx/browseren kan genbruge klippet.
+    # Kun ét spor gøres "let", så næste runde med sikkerhed vælger netop det.
+    track_id = int(url.rsplit("/", 2)[1])
+    with app.app_context():
+        get_db().execute(
+            "UPDATE track_cache SET difficulty_override = CASE WHEN id = ? THEN 'easy' ELSE 'hard' END", (track_id,)
+        )
+    assert start_round(client, category="genre", value_genre="Rap")["audio_url"] == url
     assert client.get(url).status_code == 200
 
 

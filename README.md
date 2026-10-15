@@ -52,6 +52,8 @@ Kun admin opretter genrer (`/admin/genrer/`). Hver genre har **én kilde**:
 
 Ingen API-nøgler, intet login — kun uautentificerede kald med Pythons `urllib`. Ingen nye afhængigheder.
 
+Dansk musik dækkes fint af iTunes DK — brug `artist:`-termer, da iTunes' genrenavne er engelske og brede danske søgeord rammer skævt. Se DEPLOY.md for gennemtestede eksempler.
+
 **Søgetermer** (én pr. linje, højst 25): fri tekst (`rap`) søger bredt; `artist:Kendrick Lamar` søger kun på kunstnernavn og giver de mest præcise genrer. Hver term giver op til 200 sange fra iTunes. Et valgfrit **iTunes-genrefilter** (fx `Hip-Hop/Rap`) frasorterer iTunes-resultater fra andre genrer. Filteret gælder ikke Deezer-resultater, da Deezer ikke oplyser genre i søgninger.
 
 **Sværhedsgrad for iTunes-sange** udledes groft af iTunes' egen resultatrækkefølge: første tredjedel af resultatet for en søgeterm = *Let*, midterste = *Mellem*, sidste = *Svær*. Admin kan overskrive den pr. sang og skjule sange der ikke passer ind.

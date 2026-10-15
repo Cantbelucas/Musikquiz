@@ -76,6 +76,12 @@ class TrackSource(ABC):
     def audio_response(self, track: Track):
         """Flask-response der leverer lyden (fil, stream eller redirect)."""
 
+    def prepare(self, criteria: Criteria) -> None:
+        """Kaldes KUN når en runde startes, og er det eneste sted en kilde må hente
+        data udefra. Under en igangværende runde skal opslag være rene DB-opslag,
+        så et klik aldrig venter på et API."""
+        return None
+
     def audio_url(self, ref: str) -> str | None:
         """Fast, cachebar URL til sporets lyd — eller None, hvis kilden kun kan
         levere lyden gennem spillets egen (ikke-cachebare) URL."""

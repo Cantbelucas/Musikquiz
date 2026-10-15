@@ -70,6 +70,12 @@
     } catch (_) {
       /* ikke-JSON svar */
     }
+    if (res.status === 409) {
+        // Handlingen passede ikke til serverens tilstand (fx dobbeltklik) — synkronisér
+        const conflict = new Error(data.error || "Runden blev opdateret. Prøver igen.");
+        conflict.outOfSync = true;
+        throw conflict;
+    }
     if (!res.ok) throw new Error(data.error || "Noget gik galt. Genindlæs siden og prøv igen.");
     return data;
   }
@@ -193,6 +199,14 @@
       state = await api(url, body);
       return state;
     } catch (err) {
+      if (err.outOfSync) {
+        try {
+          state = await api(urls.state);
+          return null;
+        } catch (_) {
+          /* falder igennem til fejlbeskeden */
+        }
+      }
       showError(err.message);
       return null;
     } finally {

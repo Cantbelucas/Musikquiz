@@ -31,6 +31,11 @@ class Config:
         self.CATALOG_CACHE_DAYS = _int("CATALOG_CACHE_DAYS", 30)
         self.CATALOG_TIMEOUT = _int("CATALOG_TIMEOUT", 10)
 
+        # Lad nginx sende de uploadede filer (X-Accel-Redirect). Tom = Flask streamer selv.
+        self.X_ACCEL_MEDIA = os.environ.get("X_ACCEL_MEDIA", "").strip()
+        # Hvor længe nginx/browseren må cache et preview-klip på dets faste URL
+        self.PREVIEW_CACHE_SECONDS = _int("PREVIEW_CACHE_SECONDS", 7 * 24 * 3600)
+
         self.ROUND_LENGTH = _int("ROUND_LENGTH", 10)
         self.CHOICES = _int("CHOICES", 6)
 

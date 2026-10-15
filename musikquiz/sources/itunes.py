@@ -21,9 +21,10 @@ import json
 import re
 import time
 
-from flask import Response, abort, request
+from flask import Response, abort, request, url_for
 
 from ..db import connect, get_db, transaction
+from ..security import preview_signature
 from .base import Availability, Criteria, Track, TrackSource
 from .catalog_api import CatalogClient, CatalogError, RemoteTrack, deezer_url_expires_at, is_allowed_preview_url
 
@@ -220,6 +221,13 @@ class ITunesSource(TrackSource):
             if terms and any(self.term_needs_fetch(t, "missing") for t in terms):
                 avail.pending.append(genre["name"])
         return avail
+
+    def audio_url(self, ref):
+        """Fast URL pr. spor, så nginx og browseren kan cache klippet på tværs af runder."""
+        cache_id = self._id(ref)
+        if cache_id is None:
+            return None
+        return url_for("public.preview", track_id=cache_id, signature=preview_signature(ref))
 
     def audio_response(self, track):
         cache_id = self._id(track.ref)

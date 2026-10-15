@@ -1,6 +1,7 @@
 """CSRF-beskyttelse, admin-login og simpel throttling af login-forsøg."""
 from __future__ import annotations
 
+import hashlib
 import hmac
 import secrets
 from functools import wraps
@@ -73,3 +74,10 @@ def record_failed_login(ip: str) -> None:
 
 def clear_failed_logins(ip: str) -> None:
     get_db().execute("DELETE FROM login_attempts WHERE ip = ?", (ip,))
+
+
+def preview_signature(ref: str) -> str:
+    """Kort signatur så faste preview-URL'er ikke kan gættes for vilkårlige spor."""
+    key = current_app.secret_key
+    key = key.encode() if isinstance(key, str) else key
+    return hmac.new(key, f"preview:{ref}".encode(), hashlib.sha256).hexdigest()[:20]

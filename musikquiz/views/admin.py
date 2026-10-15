@@ -1,8 +1,6 @@
 """Login-beskyttet admin-panel: upload, redigering og sletning af sange."""
 from __future__ import annotations
 
-import os
-
 from flask import (
     Blueprint,
     abort,
@@ -11,7 +9,6 @@ from flask import (
     redirect,
     render_template,
     request,
-    send_file,
     session,
     url_for,
 )
@@ -185,7 +182,4 @@ def preview(track_id: int):
     row = get_db().execute("SELECT filename, mimetype FROM tracks WHERE id = ?", (track_id,)).fetchone()
     if row is None:
         abort(404)
-    path = os.path.join(current_app.config["MEDIA_DIR"], row["filename"])
-    if not os.path.isfile(path):
-        abort(404)
-    return send_file(path, mimetype=row["mimetype"], conditional=True, max_age=0)
+    return library.send_media(row["filename"], row["mimetype"])

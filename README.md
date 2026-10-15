@@ -83,6 +83,19 @@ Et nummer uden preview ender aldrig i en quizrunde:
 3. Deezers preview-URL'er er signerede og udløber — de fornyes automatisk via Deezers API.
 4. Lyden proxies gennem appen med Range-understøttelse. Svarer udbyderen 404/410, markeres sangen.
 
+### Lydlevering
+
+Lyd er det eneste i appen, der flytter mange bytes, så den er lagt uden om Python, hvor det kan lade sig gøre:
+
+| | URL | Hvem sender bytes |
+|---|---|---|
+| Uploadede filer | `/spil/<runde>/lyd/<nr>` (privat pr. runde) | nginx via `X-Accel-Redirect`, hvis `X_ACCEL_MEDIA` er sat — ellers Flask |
+| iTunes/Deezer-previews | `/klip/<id>/<signatur>` (fast pr. sang, cachebar) | Appen første gang, derefter nginx' cache |
+
+Preview-URL'en er fast pr. sang, så nginx og browseren kan genbruge klippet på tværs af runder og spillere. Den er signeret med `SECRET_KEY`, så man ikke kan hente vilkårlige spor, og den nævner ikke kilden — serveren finder selv kilden ud fra signaturen, så spilleren ikke kan se hvor en genres sange kommer fra.
+
+Uden nginx foran (fx lokal udvikling) virker begge dele stadig; så streamer appen selv.
+
 ### Popularity (til senere)
 
 `tracks` og `track_cache` har en nullable kolonne `popularity` (0–100). Ingen kilde udfylder den i dag. Et senere lag (fx Spotify client credentials, server-til-server) kan kalde:
@@ -183,6 +196,8 @@ Alt sættes i `.env` (se [`.env.example`](.env.example)):
 | `ROUND_LENGTH` | `10` | Sange pr. runde |
 | `CHOICES` | `6` | Svarmuligheder pr. sang |
 | `MAX_UPLOAD_MB` | `50` | Max filstørrelse ved upload |
+| `X_ACCEL_MEDIA` | (tom) | Intern nginx-sti, fx `/_media/`, så nginx sender uploadede filer. Tom = appen streamer selv |
+| `PREVIEW_CACHE_SECONDS` | `604800` | Hvor længe nginx/browseren må gemme et preview-klip |
 | `ITUNES_COUNTRY` | `DK` | Landekode til iTunes-søgninger (styrer katalog og previews) |
 | `CATALOG_CACHE_DAYS` | `30` | Hvor gamle cachede søgninger må være, før *Forudfyld* henter dem igen |
 | `CATALOG_TIMEOUT` | `10` | Timeout i sekunder for kald til iTunes/Deezer |

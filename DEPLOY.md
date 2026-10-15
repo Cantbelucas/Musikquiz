@@ -98,6 +98,23 @@ networks:
     external: true
 ```
 
+Først en cache til lydklippene. Den skal stå i `http`-blokken (fx i `nginx.conf`), ikke inde i `server`:
+
+```nginx
+proxy_cache_path /var/cache/nginx/musikquiz levels=1:2 keys_zone=musikquiz_klip:10m
+                 max_size=2g inactive=30d use_temp_path=off;
+```
+
+Mount også mediemappen read-only ind i nginx-containeren, så nginx kan sende de uploadede filer:
+
+```yaml
+services:
+  nginx:
+    volumes:
+      # … eksisterende mounts …
+      - /opt/musikquiz/data/media:/srv/musikquiz-media:ro
+```
+
 Server-blok, fx `conf.d/musikquiz.conf`:
 
 ```nginx
@@ -128,6 +145,34 @@ server {
         proxy_read_timeout 120s;
         proxy_send_timeout 120s;
     }
+
+    # Lydklip fra iTunes/Deezer. Hvert klip har en fast URL, så nginx kan gemme det
+    # og servere det igen uden at røre hverken appen eller Apple/Deezer.
+    location ^~ /klip/ {
+        resolver 127.0.0.11 valid=30s ipv6=off;
+        set $musikquiz_klip http://musikquiz:8000;
+        proxy_pass $musikquiz_klip;
+
+        proxy_http_version 1.1;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Forwarded-For   $remote_addr;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # Hent altid hele klippet fra appen; nginx svarer selv på Range ud fra cachen
+        proxy_set_header Range "";
+        proxy_cache musikquiz_klip;
+        proxy_cache_valid 200 7d;          # kun 200 caches — døde previews (404) gør ikke
+        proxy_cache_lock on;               # samtidige spillere udløser ét hent, ikke ti
+        proxy_cache_use_stale updating error timeout;
+        add_header X-Cache-Status $upstream_cache_status always;
+    }
+
+    # Uploadede filer: appen tjekker adgangen og peger hertil med X-Accel-Redirect,
+    # og nginx sender selve filen. Kan ikke kaldes direkte udefra ("internal").
+    location /_media/ {
+        internal;
+        alias /srv/musikquiz-media/;       # mountet fra ./data/media
+    }
 }
 
 server {
@@ -141,13 +186,41 @@ server {
 docker exec <nginx-container> nginx -t && docker exec <nginx-container> nginx -s reload
 ```
 
+### Slå lydleveringen til
+
+Lydklip fra iTunes caches af nginx, så snart `location ^~ /klip/` er på plads — appen skal ikke sættes op til det.
+
+De uploadede filer sendes først af nginx, når du sætter dette i `.env` og genstarter appen:
+
+```bash
+X_ACCEL_MEDIA=/_media/
+```
+
+Værdien skal matche `location /_media/` præcis. **Tjek bagefter**, at en sang stadig kan spilles — er mountet eller stien forkert, får du 404 på lyden, og så sætter du bare `X_ACCEL_MEDIA=` (tom) igen, hvorefter appen selv streamer filerne som før.
+
+Du kan se at cachen virker ved at kalde det samme klip to gange:
+
+```bash
+curl -sI https://quiz.example.dk/klip/1/<signatur> | grep -i x-cache-status   # MISS
+curl -sI https://quiz.example.dk/klip/1/<signatur> | grep -i x-cache-status   # HIT
+```
+
+(Find en gyldig klip-URL i browserens netværksfane, mens du spiller en runde.)
+
+**Hvorfor det er værd at gøre:** uden det bruger appen én gunicorn-tråd pr. afspilning. Med standardopsætningen (2 workers × 4 tråde) er der kun 8 samtidige afspilninger, før folk venter på lyd. Med nginx foran bruger appen kun en tråd, første gang et klip hentes.
+
 ### B) nginx kører direkte på værten
 
-Samme server-blok, men uden `resolver`/`set` og med:
+Samme server-blok, men uden `resolver`/`set`, og med `proxy_pass http://127.0.0.1:8091;` i både `location /` og `location ^~ /klip/`. Mediemappen peges direkte på stien:
 
 ```nginx
-        proxy_pass http://127.0.0.1:8091;
+    location /_media/ {
+        internal;
+        alias /opt/musikquiz/data/media/;
+    }
 ```
+
+nginx-brugeren (typisk `www-data`) skal kunne læse mapperne ovenfor, fx `/opt/musikquiz` og `/opt/musikquiz/data`.
 
 ### Rigtig klient-IP bag Cloudflare
 
@@ -326,4 +399,6 @@ docker compose down          # data i ./data bevares
 | iTunes-genre har 0 spor / "Kunne ikke hente" | Se fejlen i forudfyldningens log. `Rate-limit ramt` → vent et par minutter og tryk **Hent alt igen** (*Forudfyld* prøver en fejlet søgeterm tidligst igen efter en time). `Kunne ikke kontakte …` → containeren har ikke udgående HTTPS (firewall/DNS) |
 | iTunes-genre vises ikke for spillerne | Genren har ingen spillbare sange (alle skjult eller uden preview), eller søgetermerne har aldrig givet resultater. Tjek genrens side i admin |
 | `524` fra Cloudflare når en runde startes | Første runde i en genre der aldrig er hentet tog over 100 sekunder. Forudfyld cachen i admin |
+| Lyden giver `404` efter du satte `X_ACCEL_MEDIA` | nginx kan ikke finde filerne: `location /_media/` mangler, eller mediemappen er ikke mountet ind i nginx-containeren. Sæt `X_ACCEL_MEDIA=` (tom) for at gå tilbage til at appen streamer selv |
+| `X-Cache-Status` siger altid `MISS` | `proxy_cache_path` mangler i `http`-blokken, eller nginx kan ikke skrive i cache-mappen (`/var/cache/nginx/musikquiz`) |
 | Lyd fra iTunes-genre giver `502` | Appen kunne ikke nå Apple/Deezers CDN. Tjek udgående trafik fra containeren: `docker compose exec musikquiz python -c "import urllib.request; print(urllib.request.urlopen('https://itunes.apple.com/search?term=test&limit=1').status)"` |

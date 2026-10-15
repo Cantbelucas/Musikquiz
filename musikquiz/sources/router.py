@@ -108,6 +108,10 @@ class GenreRouter(TrackSource):
                 merged.pending.append(genre["name"])
         return merged
 
+    def audio_url(self, ref: str) -> str | None:
+        owner = self._owner(ref)
+        return owner.audio_url(ref) if owner else None
+
     def audio_response(self, track: Track):
         owner = self._owner(track.ref)
         if owner is None:

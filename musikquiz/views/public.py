@@ -1,6 +1,7 @@
 """Spillerens sider: start, spil, JSON-API og highscores."""
 from __future__ import annotations
 
+import hmac
 from dataclasses import asdict
 
 from flask import (
@@ -16,6 +17,7 @@ from flask import (
 
 from ..db import get_db
 from ..game import FINISHED, PLAYING, REVEALED, STAGES, GameError, create_game, load_game, locked_game
+from ..security import preview_signature
 from ..sources import CATEGORY_TYPES, DIFFICULTIES, Criteria, get_source
 
 bp = Blueprint("public", __name__)
@@ -68,7 +70,11 @@ def play(game_id: str):
 def _state(game) -> dict:
     state = game.public_state()
     if game.status in (PLAYING, REVEALED):
-        state["audio_url"] = url_for(".audio", game_id=game.id, index=game.index)
+        # Kilder med en fast URL (fx iTunes-previews) bruger den, så nginx kan cache
+        # klippet. Ellers serveres lyden på spillets egen, ikke-cachebare URL.
+        state["audio_url"] = get_source().audio_url(game.current_ref) or url_for(
+            ".audio", game_id=game.id, index=game.index
+        )
     return state
 
 
@@ -123,6 +129,28 @@ def audio(game_id: str, index: int):
     if track is None:
         abort(404)
     return source.audio_response(track)
+
+
+@bp.get("/klip/<int:track_id>/<signature>")
+def preview(track_id: int, signature: str):
+    """Fast URL til et lydklip: signeret, så vilkårlige spor ikke kan hentes, og
+    cachebar, så gentagne afspilninger hverken rammer appen eller udbyderen.
+
+    URL'en nævner ikke kilden — signaturen afgør hvilken kilde sporet hører til,
+    så spilleren ikke kan se hvor en genres sange kommer fra.
+    """
+    track_source = track = None
+    for name, candidate in get_source().sources.items():
+        if hmac.compare_digest(signature, preview_signature(f"{name}:{track_id}")):
+            track_source = candidate
+            track = candidate.get_track(f"{name}:{track_id}")
+            break
+    if track is None:
+        abort(404)
+    response = track_source.audio_response(track)
+    response.headers["Cache-Control"] = f"public, max-age={current_app.config['PREVIEW_CACHE_SECONDS']}"
+    response.headers.pop("Expires", None)
+    return response
 
 
 # --- highscores --------------------------------------------------------------

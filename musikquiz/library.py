@@ -4,6 +4,8 @@ from __future__ import annotations
 import os
 import uuid
 
+from flask import abort, current_app, send_file
+
 from .sources import DIFFICULTIES
 
 AUDIO_TYPES = {
@@ -101,3 +103,27 @@ def delete_track(db, media_dir: str, track_id: int) -> bool:
     if os.path.isfile(path):
         os.remove(path)
     return True
+
+
+def send_media(filename: str, mimetype: str):
+    """Lever en uploadet fil.
+
+    Er X_ACCEL_MEDIA sat, svarer appen kun med et X-Accel-Redirect-header, og nginx
+    sender selve filen (ingen gunicorn-tråd bundet af streaming). Er den tom,
+    streamer Flask filen selv — fx lokal udvikling eller en opsætning uden nginx.
+    """
+    prefix = current_app.config["X_ACCEL_MEDIA"]
+    if prefix:
+        response = current_app.response_class(b"", mimetype=mimetype)
+        response.headers["X-Accel-Redirect"] = prefix + filename
+        response.headers["Accept-Ranges"] = "bytes"
+        response.headers["Cache-Control"] = "private, no-cache"
+        return response
+
+    path = os.path.join(current_app.config["MEDIA_DIR"], filename)
+    if not os.path.isfile(path):
+        abort(404)
+    # conditional=True giver Range-understøttelse, så browseren kan spole til start_at.
+    response = send_file(path, mimetype=mimetype, conditional=True, max_age=0)
+    response.headers["Cache-Control"] = "private, no-cache"
+    return response

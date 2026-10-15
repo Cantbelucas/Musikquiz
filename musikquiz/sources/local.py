@@ -1,9 +1,7 @@
 """Lydkilde: filer uploadet af admin, gemt i MEDIA_DIR med metadata i SQLite."""
 from __future__ import annotations
 
-import os
-
-from flask import abort, send_file
+from flask import abort
 
 from ..db import get_db
 from .base import Availability, Criteria, Track, TrackSource
@@ -11,9 +9,6 @@ from .base import Availability, Criteria, Track, TrackSource
 
 class LocalFileSource(TrackSource):
     name = "local"
-
-    def __init__(self, media_dir: str):
-        self.media_dir = media_dir
 
     # --- hjælpere -------------------------------------------------------
     def _ref(self, track_id: int) -> str:
@@ -127,14 +122,10 @@ class LocalFileSource(TrackSource):
         return avail
 
     def audio_response(self, track):
+        from ..library import send_media
+
         track_id = self._id(track.ref)
         row = get_db().execute("SELECT filename, mimetype FROM tracks WHERE id = ?", (track_id,)).fetchone()
         if not row:
             abort(404)
-        path = os.path.join(self.media_dir, row["filename"])
-        if not os.path.isfile(path):
-            abort(404)
-        # conditional=True giver Range-understøttelse, så browseren kan spole til start_at.
-        response = send_file(path, mimetype=row["mimetype"], conditional=True, max_age=0)
-        response.headers["Cache-Control"] = "private, no-cache"
-        return response
+        return send_media(row["filename"], row["mimetype"])

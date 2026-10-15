@@ -17,7 +17,7 @@ from .local import LocalFileSource
 from .router import GenreRouter
 
 _FACTORIES = {
-    "local": lambda app: LocalFileSource(app.config["MEDIA_DIR"]),
+    "local": lambda app: LocalFileSource(),
     "itunes": lambda app: ITunesSource(
         CatalogClient(timeout=app.config["CATALOG_TIMEOUT"]),
         country=app.config["ITUNES_COUNTRY"],
@@ -40,6 +40,7 @@ def get_source() -> GenreRouter:
 
 def get_itunes() -> ITunesSource:
     return get_source().sources["itunes"]
+
 
 
 __all__ = [
